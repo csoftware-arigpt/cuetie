@@ -4,6 +4,9 @@ GTK3 desktop application for splitting CUE sheet audio into individual tracks wi
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-AGPL%20v3-green)
+## Screenshot
+
+<img width="1068" height="1067" alt="image" src="https://github.com/user-attachments/assets/8e0abcb3-28b2-4378-bf20-d6f323e4872d" />
 
 ## Features
 
