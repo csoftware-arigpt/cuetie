@@ -2,9 +2,36 @@ import sys
 
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gio
+from gi.repository import Gtk, GLib, Gio
+
+GLib.set_prgname("cuetie")
+GLib.set_application_name("CUEtie")
 
 from .ui.main_window import MainWindow
+
+
+def _follow_system_theme():
+    settings = Gtk.Settings.get_default()
+    if settings is None:
+        return
+    # Read the system/portal dark mode preference
+    prefer_dark = False
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["dbus-send", "--session", "--print-reply=literal",
+             "--dest=org.freedesktop.portal.Desktop",
+             "/org/freedesktop/portal/desktop",
+             "org.freedesktop.portal.Settings.Read",
+             "string:org.freedesktop.appearance",
+             "string:color-scheme"],
+            capture_output=True, text=True, timeout=2,
+        )
+        # color-scheme: 1 = prefer dark, 2 = prefer light, 0 = no preference
+        prefer_dark = "uint32 1" in result.stdout
+    except Exception:
+        pass
+    settings.set_property("gtk-application-prefer-dark-theme", prefer_dark)
 
 
 class CUEtieApp(Gtk.Application):
@@ -15,6 +42,7 @@ class CUEtieApp(Gtk.Application):
         )
 
     def do_activate(self):
+        _follow_system_theme()
         MainWindow(self).show_all()
 
     def do_open(self, files, n_files, hint):

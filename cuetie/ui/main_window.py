@@ -97,7 +97,7 @@ class MainWindow(Gtk.ApplicationWindow):
                                     xalign=0.0)
         bar.pack_start(self._cue_label, True, True, 0)
         title = Gtk.Label()
-        title.set_markup('<b>CUE<span foreground="#e07000">tie</span></b>')
+        title.set_markup('<b>CUEtie</b>')
         bar.pack_end(title, False, False, 8)
         return bar
 

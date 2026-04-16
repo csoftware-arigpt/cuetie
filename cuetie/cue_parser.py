@@ -212,13 +212,42 @@ def parse_cue(cue_path: str) -> AlbumInfo:
 
 
 def _read_cue(path: str) -> list[str]:
-    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+    with open(path, "rb") as f:
+        raw = f.read()
+
+    # BOM detection first
+    if raw[:3] == b"\xef\xbb\xbf":
+        return raw.decode("utf-8-sig").splitlines(True)
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        enc = "utf-16"
+        return raw.decode(enc).splitlines(True)
+
+    # Try UTF-8 (strict)
+    try:
+        return raw.decode("utf-8").splitlines(True)
+    except UnicodeDecodeError:
+        pass
+
+    # Auto-detect via charset-normalizer
+    try:
+        from charset_normalizer import from_bytes
+        result = from_bytes(raw).best()
+        if result and result.encoding:
+            return str(result).splitlines(True)
+    except ImportError:
+        pass
+
+    # Manual fallback chain (ordered by prevalence in CUE files)
+    for enc in ("cp1251", "cp1252", "shift_jis", "gb2312", "gb18030",
+                "euc-kr", "big5", "iso-8859-1", "iso-8859-2",
+                "iso-8859-5", "iso-8859-15", "cp437", "cp866"):
         try:
-            with open(path, "r", encoding=enc) as f:
-                return f.readlines()
-        except UnicodeDecodeError:
+            return raw.decode(enc, errors="strict").splitlines(True)
+        except (UnicodeDecodeError, LookupError):
             continue
-    raise ValueError(f"Cannot decode: {path}")
+
+    # Last resort — lossy latin-1 (accepts any byte)
+    return raw.decode("latin-1").splitlines(True)
 
 
 def _find_cover(cue_dir: str, album: AlbumInfo) -> Optional[str]:
