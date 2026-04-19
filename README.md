@@ -117,7 +117,7 @@ docker run -d -p 8080:8080 -v "$(pwd)/data:/data" --shm-size=256m cuetie:local
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `VNC_RESOLUTION` | `1366x768x24` | Xvfb screen geometry `WxHxDEPTH` |
+| `VNC_RESOLUTION` | `1920x1080x24` | Xvfb screen geometry `WxHxDEPTH` |
 | `DISPLAY` | `:99` | X display used by Xvfb and CUEtie |
 
 Ports:
