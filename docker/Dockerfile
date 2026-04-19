@@ -1,8 +1,8 @@
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     DISPLAY=:99 \
-    VNC_RESOLUTION=1366x768x24 \
+    VNC_RESOLUTION=1920x1080x24 \
     VNC_PORT=5900 \
     NOVNC_PORT=6080 \
     WEB_PORT=8080 \
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
         xvfb \
         x11vnc \
-        fluxbox \
+        openbox \
         novnc \
         websockify \
         nginx \
@@ -43,7 +43,8 @@ COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/run-cuetie.sh /usr/local/bin/run-cuetie
 RUN chmod +x /usr/local/bin/run-cuetie \
     && rm -f /etc/nginx/sites-enabled/default \
-    && mkdir -p /data /var/log/nginx /root/.fluxbox
+    && mkdir -p /data /var/log/nginx /root/.config/openbox \
+    && echo 'exec openbox-session' > /root/.xinitrc
 
 VOLUME ["/data"]
 EXPOSE 8080
