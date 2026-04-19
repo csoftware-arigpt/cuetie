@@ -6,11 +6,15 @@ GTK3 desktop application for splitting CUE sheet audio into individual tracks wi
 ![License](https://img.shields.io/badge/License-AGPL%20v3-green)
 ## Screenshot
 
-<img width="1068" height="1067" alt="image" src="https://github.com/user-attachments/assets/8e0abcb3-28b2-4378-bf20-d6f323e4872d" />
+![CUEtie UI](screenshot.png)
 
 ## Features
 
 - **Full CUE spec parsing** — `CATALOG`, `CDTEXTFILE`, `PERFORMER`, `SONGWRITER`, `TITLE`, `FILE`, `TRACK`, `FLAGS`, `ISRC`, `PREGAP`, `POSTGAP`, `INDEX`, all `REM` extensions
+- **Multi-CUE support** — load many CUE sheets at once via multi-select dialog or drag-and-drop; sidebar lists every loaded CUE with live selected/total track counts
+- **Queue & parallel processing** — `workers = 1` runs jobs as a FIFO queue; `workers > 1` spawns that many parallel ffmpeg subprocesses across every pending task of every CUE
+- **Per-CUE output directory** — each CUE remembers its own destination (default `<cue_name>_tracks/` next to the cue)
+- **Unified progress** — overall progress bar and per-task status line span the entire batch
 - **Track picker** — select any subset of tracks via checkboxes before splitting
 - **Per-track metadata editor** — edit title, performer, songwriter, ISRC inline; changes apply to output tags
 - **Album metadata editor** — edit title, performer, genre, date, catalog, comment before processing
@@ -19,9 +23,9 @@ GTK3 desktop application for splitting CUE sheet audio into individual tracks wi
 - **Quality control** — FLAC compression level, bitrate for lossy formats
 - **Filename templates** — `{track:02d} {title}`, `{artist} - {title}`, etc.
 - **ffmpeg validation** — checks binary and required encoders on startup
-- **Drag & drop** — drop a `.cue` file onto the window
+- **Drag & drop** — drop one or many `.cue` files onto the window
 - **Processing log** — ffmpeg output streamed to in-app log panel
-- **Cancel** — abort in-progress split at any time
+- **Cancel** — abort in-progress batch at any time; terminates all running ffmpeg workers
 
 ## Requirements
 
@@ -73,6 +77,53 @@ sudo dnf install python3-gobject gtk3 ffmpeg python3-mutagen
 pip install -e .
 python -m cuetie
 ```
+
+### Docker (web UI via noVNC)
+
+Run CUEtie in a container and use it from your browser — no local GTK or ffmpeg required. The container ships Xvfb + fluxbox + x11vnc + websockify + noVNC behind an nginx reverse proxy.
+
+#### Prebuilt image (GHCR)
+
+```bash
+docker run -d --name cuetie \
+  -p 8080:8080 \
+  -v "$(pwd)/data:/data" \
+  --shm-size=256m \
+  ghcr.io/csoftware-arigpt/cuetie:latest
+```
+
+Open <http://localhost:8080> — the page auto-redirects to noVNC's lightweight viewer and auto-connects to the VNC session.
+
+Drop `.cue` files and their companion audio into the `./data` directory on the host; inside the container they appear at `/data`. Use **Add CUE…** and the file picker to navigate to `/data`.
+
+#### Docker Compose
+
+```bash
+git clone https://github.com/csoftware-arigpt/cuetie
+cd cuetie
+docker compose up -d
+```
+
+`docker-compose.yml` binds `./data` → `/data`, exposes port 8080, sets `VNC_RESOLUTION=1366x768x24`, and restarts on failure.
+
+#### Build locally
+
+```bash
+docker build -f docker/Dockerfile -t cuetie:local .
+docker run -d -p 8080:8080 -v "$(pwd)/data:/data" --shm-size=256m cuetie:local
+```
+
+#### Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VNC_RESOLUTION` | `1366x768x24` | Xvfb screen geometry `WxHxDEPTH` |
+| `DISPLAY` | `:99` | X display used by Xvfb and CUEtie |
+
+Ports:
+- `8080/tcp` — HTTP + WebSocket (nginx → websockify → x11vnc)
+
+Stop the container with `docker stop cuetie` or `docker compose down`.
 
 ## Usage
 

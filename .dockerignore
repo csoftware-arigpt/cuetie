@@ -1,0 +1,26 @@
+.git
+.gitignore
+.gitattributes
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+env
+.env
+.idea
+.vscode
+.claude
+.mypy_cache
+.pytest_cache
+.ruff_cache
+htmlcov
+.coverage
+dist
+build
+*.egg-info
+data
+shell.nix
+# Keep docker/ in the build context — Dockerfile COPYs from it.

@@ -1,0 +1,16 @@
+services:
+  cuetie:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: cuetie:latest
+    container_name: cuetie
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      VNC_RESOLUTION: 1366x768x24
+    shm_size: "256m"
+    restart: unless-stopped
+    stop_grace_period: 10s

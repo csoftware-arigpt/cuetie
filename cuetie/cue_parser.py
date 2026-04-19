@@ -54,6 +54,8 @@ class AlbumInfo:
     rem: dict[str, str] = field(default_factory=dict)
     files: list[FileEntry] = field(default_factory=list)
     cover_path: Optional[str] = None
+    cue_path: str = ""
+    output_dir: str = ""
 
     @property
     def genre(self) -> str:
@@ -101,8 +103,9 @@ _RE_REM        = re.compile(r'^REM\s+(\S+)\s+(.*)', re.I)
 
 def parse_cue(cue_path: str) -> AlbumInfo:
     lines = _read_cue(cue_path)
-    album = AlbumInfo()
-    cue_dir = os.path.dirname(os.path.abspath(cue_path))
+    abs_cue = os.path.abspath(cue_path)
+    album = AlbumInfo(cue_path=abs_cue)
+    cue_dir = os.path.dirname(abs_cue)
     current_file: Optional[FileEntry] = None
     current_track: Optional[TrackInfo] = None
     in_track = False
@@ -208,6 +211,8 @@ def parse_cue(cue_path: str) -> AlbumInfo:
         album.files.append(current_file)
 
     album.cover_path = _find_cover(cue_dir, album)
+    base = os.path.splitext(os.path.basename(abs_cue))[0]
+    album.output_dir = os.path.join(cue_dir, base + "_tracks")
     return album
 
 
