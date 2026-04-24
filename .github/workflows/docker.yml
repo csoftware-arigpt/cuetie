@@ -68,7 +68,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=cuetie-amd64
+          cache-to: type=gha,mode=min,scope=cuetie-amd64,ignore-error=true
           provenance: false
           sbom: false
