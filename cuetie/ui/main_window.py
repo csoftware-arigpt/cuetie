@@ -119,10 +119,6 @@ class MainWindow(Gtk.ApplicationWindow):
         bottom.pack_start(self._make_progress_panel(), False, False, 0)
         bottom.pack_start(Gtk.Separator(), False, False, 0)
 
-        self._workers_panel = WorkersPanel(on_kill_one=self._on_kill_one)
-        bottom.pack_start(self._workers_panel, False, False, 0)
-        bottom.pack_start(Gtk.Separator(), False, False, 0)
-
         log_scroll = Gtk.ScrolledWindow()
         log_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         log_scroll.set_min_content_height(80)
@@ -141,6 +137,19 @@ class MainWindow(Gtk.ApplicationWindow):
         self._vpaned = vpaned
         GLib.idle_add(self._set_vpaned_position)
         root.pack_start(vpaned, True, True, 0)
+
+        root.pack_start(Gtk.Separator(), False, False, 0)
+        self._workers_panel = WorkersPanel(on_kill_one=self._on_kill_one)
+        root.pack_start(self._workers_panel, False, False, 0)
+
+        root.pack_start(Gtk.Separator(), False, False, 0)
+        status_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
+                             spacing=6, border_width=4)
+        self._status_label = Gtk.Label(label="Idle", xalign=0.0)
+        self._status_label.set_ellipsize(Pango.EllipsizeMode.END)
+        self._status_label.set_hexpand(True)
+        status_bar.pack_start(self._status_label, True, True, 0)
+        root.pack_start(status_bar, False, False, 0)
 
         root.show_all()
         self._detail_panel.load(None)
@@ -374,11 +383,6 @@ class MainWindow(Gtk.ApplicationWindow):
         self._progress = Gtk.ProgressBar(hexpand=True, show_text=True)
         row1.pack_start(self._progress, True, True, 0)
         box.pack_start(row1, False, False, 0)
-
-        self._status_label = Gtk.Label(label="Idle", xalign=0.0)
-        self._status_label.set_ellipsize(Pango.EllipsizeMode.END)
-        self._status_label.set_hexpand(True)
-        box.pack_start(self._status_label, False, False, 0)
 
         btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._btn_start = Gtk.Button(label="Start")
