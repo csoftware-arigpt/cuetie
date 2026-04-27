@@ -14,8 +14,22 @@ def _follow_system_theme():
     settings = Gtk.Settings.get_default()
     if settings is None:
         return
-    # Read the system/portal dark mode preference
-    prefer_dark = False
+    settings.set_property("gtk-application-prefer-dark-theme", _detect_dark_mode())
+
+
+def _detect_dark_mode() -> bool:
+    import os
+    if os.name == "nt":
+        try:
+            import winreg
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            ) as key:
+                value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+                return value == 0
+        except Exception:
+            return False
     try:
         import subprocess
         result = subprocess.run(
@@ -27,11 +41,9 @@ def _follow_system_theme():
              "string:color-scheme"],
             capture_output=True, text=True, timeout=2,
         )
-        # color-scheme: 1 = prefer dark, 2 = prefer light, 0 = no preference
-        prefer_dark = "uint32 1" in result.stdout
+        return "uint32 1" in result.stdout
     except Exception:
-        pass
-    settings.set_property("gtk-application-prefer-dark-theme", prefer_dark)
+        return False
 
 
 class CUEtieApp(Gtk.Application):

@@ -1,4 +1,6 @@
 from __future__ import annotations
+import os
+import sys
 import subprocess
 import shutil
 from dataclasses import dataclass
@@ -12,30 +14,63 @@ class FFmpegInfo:
     codecs: set[str]
 
 
+def _no_window_kwargs() -> dict:
+    if os.name == "nt":
+        return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
+    return {}
+
+
+def _candidate_dirs() -> list[str]:
+    dirs: list[str] = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        dirs.append(meipass)
+        dirs.append(os.path.join(meipass, "ffmpeg"))
+    if getattr(sys, "frozen", False):
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        dirs.append(exe_dir)
+        dirs.append(os.path.join(exe_dir, "ffmpeg"))
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    dirs.append(os.path.join(pkg_dir, "_ffmpeg"))
+    return dirs
+
+
+def ffmpeg_path() -> str:
+    """Return path to bundled ffmpeg if present, else PATH lookup, else ''."""
+    name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    for d in _candidate_dirs():
+        candidate = os.path.join(d, name)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK | os.R_OK):
+            return candidate
+    return shutil.which("ffmpeg") or ""
+
+
 def check_ffmpeg() -> FFmpegInfo:
-    path = shutil.which("ffmpeg")
+    path = ffmpeg_path()
     if not path:
         return FFmpegInfo(found=False, path="", version="", codecs=set())
 
     try:
         r = subprocess.run(
-            ["ffmpeg", "-version"],
+            [path, "-version"],
             capture_output=True, text=True, timeout=5,
+            **_no_window_kwargs(),
         )
         version_line = r.stdout.splitlines()[0] if r.stdout else ""
         version = version_line.replace("ffmpeg version ", "").split(" ")[0]
     except Exception:
         return FFmpegInfo(found=False, path=path, version="", codecs=set())
 
-    codecs = _probe_codecs()
+    codecs = _probe_codecs(path)
     return FFmpegInfo(found=True, path=path, version=version, codecs=codecs)
 
 
-def _probe_codecs() -> set[str]:
+def _probe_codecs(path: str) -> set[str]:
     try:
         r = subprocess.run(
-            ["ffmpeg", "-encoders"],
+            [path, "-encoders"],
             capture_output=True, text=True, timeout=5,
+            **_no_window_kwargs(),
         )
         found: set[str] = set()
         for line in r.stdout.splitlines():

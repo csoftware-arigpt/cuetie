@@ -3,3 +3,13 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# PyInstaller
+build/
+dist/
+packaging/_ffmpeg/
+*.manifest
+
+# venvs
+.venv/
+venv/

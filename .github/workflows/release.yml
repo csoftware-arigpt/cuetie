@@ -1,0 +1,181 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Build Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2 UCRT64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-python
+            mingw-w64-ucrt-x86_64-python-pip
+            mingw-w64-ucrt-x86_64-python-gobject
+            mingw-w64-ucrt-x86_64-python-cairo
+            mingw-w64-ucrt-x86_64-gtk3
+            mingw-w64-ucrt-x86_64-adwaita-icon-theme
+            mingw-w64-ucrt-x86_64-hicolor-icon-theme
+            mingw-w64-ucrt-x86_64-gettext
+            unzip
+            curl
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller mutagen charset-normalizer
+
+      - name: Fetch ffmpeg
+        run: |
+          mkdir -p packaging/_ffmpeg
+          curl -L -o ffmpeg.zip \
+            https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip
+          unzip -q ffmpeg.zip -d ffmpeg-extracted
+          cp ffmpeg-extracted/*/bin/ffmpeg.exe packaging/_ffmpeg/
+          cp ffmpeg-extracted/*/bin/ffprobe.exe packaging/_ffmpeg/
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller packaging/cuetie.spec --noconfirm --clean
+
+      - name: Stage GTK runtime
+        run: |
+          DEST=dist/cuetie
+          UCRT=/ucrt64
+          for dll in \
+            libgtk-3-0 libgdk-3-0 libgobject-2.0-0 libglib-2.0-0 \
+            libgio-2.0-0 libgmodule-2.0-0 libpango-1.0-0 libpangocairo-1.0-0 \
+            libpangoft2-1.0-0 libpangowin32-1.0-0 libcairo-2 libcairo-gobject-2 \
+            libgdk_pixbuf-2.0-0 libatk-1.0-0 libepoxy-0 \
+            libfribidi-0 libharfbuzz-0 libfontconfig-1 libfreetype-6 \
+            libpixman-1-0 libpng16-16 libffi-8 libintl-8 libiconv-2 \
+            zlib1 libwinpthread-1 libgcc_s_seh-1 libstdc++-6 \
+            libbz2-1 liblzma-5 libxml2-2 libgraphite2 libthai-0 libdatrie-1; do
+            f="$UCRT/bin/$dll.dll"
+            [ -f "$f" ] && cp "$f" "$DEST/" || true
+          done
+          mkdir -p "$DEST/share/glib-2.0/schemas"
+          cp -r $UCRT/share/glib-2.0/schemas/* "$DEST/share/glib-2.0/schemas/" || true
+          mkdir -p "$DEST/lib/gdk-pixbuf-2.0"
+          cp -r $UCRT/lib/gdk-pixbuf-2.0/* "$DEST/lib/gdk-pixbuf-2.0/" || true
+          mkdir -p "$DEST/lib/girepository-1.0"
+          cp -r $UCRT/lib/girepository-1.0/* "$DEST/lib/girepository-1.0/" || true
+          mkdir -p "$DEST/share/icons"
+          cp -r $UCRT/share/icons/Adwaita "$DEST/share/icons/" || true
+          cp -r $UCRT/share/icons/hicolor "$DEST/share/icons/" || true
+
+      - name: Package zip
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF -match 'refs/tags/(.+)') { $matches[1] } else { 'dev' }
+          $name = "cuetie-$version-windows-x64"
+          Rename-Item dist/cuetie $name
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
+          "ARTIFACT=dist/$name.zip" | Out-File -Append $env:GITHUB_ENV
+          "ARTIFACT_NAME=$name.zip" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuetie-windows
+          path: ${{ env.ARTIFACT }}
+          if-no-files-found: error
+
+  linux:
+    name: Build Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install GTK3 + PyGObject
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3 python3-pip python3-venv python3-dev \
+            python3-gi python3-gi-cairo gir1.2-gtk-3.0 \
+            libgtk-3-0 libgirepository-1.0-1 libcairo2 \
+            xz-utils curl
+
+      - name: Create venv with system PyGObject
+        run: |
+          python3 -m venv --system-site-packages .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install pyinstaller mutagen charset-normalizer
+
+      - name: Fetch ffmpeg static
+        run: |
+          mkdir -p packaging/_ffmpeg
+          curl -L -o ffmpeg.tar.xz \
+            https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+          tar -xJf ffmpeg.tar.xz
+          cp ffmpeg-master-latest-linux64-gpl/bin/ffmpeg packaging/_ffmpeg/
+          cp ffmpeg-master-latest-linux64-gpl/bin/ffprobe packaging/_ffmpeg/
+          chmod +x packaging/_ffmpeg/*
+
+      - name: Build with PyInstaller
+        run: |
+          .venv/bin/pyinstaller packaging/cuetie.spec --noconfirm --clean
+
+      - name: Package tarball
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          [ "$VERSION" = "$GITHUB_REF" ] && VERSION="dev"
+          NAME="cuetie-${VERSION}-linux-x64"
+          mv dist/cuetie "dist/${NAME}"
+          tar -C dist -czf "dist/${NAME}.tar.gz" "${NAME}"
+          echo "ARTIFACT=dist/${NAME}.tar.gz" >> "$GITHUB_ENV"
+          echo "ARTIFACT_NAME=${NAME}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuetie-linux
+          path: ${{ env.ARTIFACT }}
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cuetie-windows
+          path: dist
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cuetie-linux
+          path: dist
+
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          draft: false
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from .cue_parser import AlbumInfo, TrackInfo, FileEntry
+from .ffmpeg_check import ffmpeg_path
 
 
 @dataclass
@@ -261,7 +262,8 @@ class BatchProcessor:
 
     def _cut(self, task: _Task) -> bool:
         s = task.settings
-        cmd = ["ffmpeg", "-y", "-i", task.src, "-ss", f"{task.start_sec:.6f}"]
+        ff = ffmpeg_path() or "ffmpeg"
+        cmd = [ff, "-y", "-i", task.src, "-ss", f"{task.start_sec:.6f}"]
         if task.end_sec is not None and task.end_sec > task.start_sec:
             cmd += ["-t", f"{task.end_sec - task.start_sec:.6f}"]
 
@@ -284,10 +286,15 @@ class BatchProcessor:
         cmd += ["-map_metadata", "-1", "-map", "0:a", task.out_path]
         self._log("$ " + " ".join(cmd))
 
+        popen_kwargs: dict = {}
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = getattr(
+                subprocess, "CREATE_NO_WINDOW", 0x08000000
+            )
         try:
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                universal_newlines=True,
+                universal_newlines=True, **popen_kwargs,
             )
         except FileNotFoundError:
             self._log("ERROR: ffmpeg not found in PATH")
