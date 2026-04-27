@@ -8,7 +8,6 @@ __pycache__/
 build/
 dist/
 packaging/_ffmpeg/
-*.manifest
 
 # venvs
 .venv/

@@ -286,15 +286,10 @@ class BatchProcessor:
         cmd += ["-map_metadata", "-1", "-map", "0:a", task.out_path]
         self._log("$ " + " ".join(cmd))
 
-        popen_kwargs: dict = {}
-        if os.name == "nt":
-            popen_kwargs["creationflags"] = getattr(
-                subprocess, "CREATE_NO_WINDOW", 0x08000000
-            )
         try:
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                universal_newlines=True, **popen_kwargs,
+                universal_newlines=True,
             )
         except FileNotFoundError:
             self._log("ERROR: ffmpeg not found in PATH")

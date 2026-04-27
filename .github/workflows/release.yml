@@ -13,142 +13,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  windows:
-    name: Build Windows
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: msys2 {0}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup MSYS2 UCRT64
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            mingw-w64-ucrt-x86_64-python
-            mingw-w64-ucrt-x86_64-python-pip
-            mingw-w64-ucrt-x86_64-python-gobject
-            mingw-w64-ucrt-x86_64-python-cairo
-            mingw-w64-ucrt-x86_64-python-mutagen
-            mingw-w64-ucrt-x86_64-python-charset-normalizer
-            mingw-w64-ucrt-x86_64-gtk3
-            mingw-w64-ucrt-x86_64-adwaita-icon-theme
-            mingw-w64-ucrt-x86_64-hicolor-icon-theme
-            mingw-w64-ucrt-x86_64-gettext
-            unzip
-            curl
-
-      - name: Install PyInstaller
-        run: |
-          python -m pip install --break-system-packages --upgrade pip
-          python -m pip install --break-system-packages pyinstaller
-
-      - name: Fetch ffmpeg
-        run: |
-          mkdir -p packaging/_ffmpeg
-          curl -L -o ffmpeg.zip \
-            https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip
-          unzip -q ffmpeg.zip -d ffmpeg-extracted
-          cp ffmpeg-extracted/*/bin/ffmpeg.exe packaging/_ffmpeg/
-          cp ffmpeg-extracted/*/bin/ffprobe.exe packaging/_ffmpeg/
-
-      - name: Build with PyInstaller
-        run: |
-          pyinstaller packaging/cuetie.spec --noconfirm --clean
-
-      - name: Stage GTK runtime
-        run: |
-          set -e
-          DEST=dist/cuetie
-          UCRT=/ucrt64
-          PKGS=(
-            mingw-w64-ucrt-x86_64-gtk3
-            mingw-w64-ucrt-x86_64-glib2
-            mingw-w64-ucrt-x86_64-gdk-pixbuf2
-            mingw-w64-ucrt-x86_64-cairo
-            mingw-w64-ucrt-x86_64-pango
-            mingw-w64-ucrt-x86_64-atk
-            mingw-w64-ucrt-x86_64-gobject-introspection-runtime
-            mingw-w64-ucrt-x86_64-libepoxy
-            mingw-w64-ucrt-x86_64-harfbuzz
-            mingw-w64-ucrt-x86_64-fribidi
-            mingw-w64-ucrt-x86_64-fontconfig
-            mingw-w64-ucrt-x86_64-freetype
-            mingw-w64-ucrt-x86_64-graphite2
-            mingw-w64-ucrt-x86_64-libffi
-            mingw-w64-ucrt-x86_64-gettext-runtime
-            mingw-w64-ucrt-x86_64-zlib
-            mingw-w64-ucrt-x86_64-libpng
-            mingw-w64-ucrt-x86_64-libjpeg-turbo
-            mingw-w64-ucrt-x86_64-libtiff
-            mingw-w64-ucrt-x86_64-pixman
-            mingw-w64-ucrt-x86_64-libxml2
-            mingw-w64-ucrt-x86_64-libthai
-            mingw-w64-ucrt-x86_64-libdatrie
-            mingw-w64-ucrt-x86_64-bzip2
-            mingw-w64-ucrt-x86_64-xz
-            mingw-w64-ucrt-x86_64-brotli
-            mingw-w64-ucrt-x86_64-libiconv
-            mingw-w64-ucrt-x86_64-zstd
-            mingw-w64-ucrt-x86_64-shared-mime-info
-            mingw-w64-ucrt-x86_64-adwaita-icon-theme
-            mingw-w64-ucrt-x86_64-hicolor-icon-theme
-            mingw-w64-ucrt-x86_64-python-gobject
-            mingw-w64-ucrt-x86_64-python-cairo
-          )
-          for pkg in "${PKGS[@]}"; do
-            pacman -Ql "$pkg" 2>/dev/null | awk '{$1=""; sub(/^ /,""); print}' | \
-            while IFS= read -r path; do
-              [ -z "$path" ] && continue
-              [ -f "$path" ] || continue
-              case "$path" in
-                "$UCRT/bin/"*.dll|"$UCRT/bin/"*.exe)
-                  cp -u "$path" "$DEST/" ;;
-                "$UCRT/lib/girepository-1.0/"*|\
-                "$UCRT/lib/gdk-pixbuf-2.0/"*|\
-                "$UCRT/share/glib-2.0/schemas/"*|\
-                "$UCRT/share/icons/Adwaita/"*|\
-                "$UCRT/share/icons/hicolor/"*|\
-                "$UCRT/share/themes/"*|\
-                "$UCRT/share/mime/"*|\
-                "$UCRT/share/fontconfig/"*|\
-                "$UCRT/etc/fonts/"*|\
-                "$UCRT/etc/gtk-3.0/"*)
-                  rel="${path#$UCRT/}"
-                  target="$DEST/$rel"
-                  mkdir -p "$(dirname "$target")"
-                  cp -u "$path" "$target" ;;
-              esac
-            done
-          done
-          if command -v glib-compile-schemas >/dev/null 2>&1; then
-            glib-compile-schemas "$DEST/share/glib-2.0/schemas" || true
-          fi
-          cp -u "$UCRT/bin/gdk-pixbuf-query-loaders.exe" "$DEST/" || true
-          rm -f "$DEST/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
-          echo "DLL count: $(ls "$DEST"/*.dll 2>/dev/null | wc -l)"
-
-      - name: Package zip
-        shell: pwsh
-        run: |
-          $version = if ($env:GITHUB_REF -match 'refs/tags/(.+)') { $matches[1] } else { 'dev' }
-          $name = "cuetie-$version-windows-x64"
-          Rename-Item dist/cuetie $name
-          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
-          "ARTIFACT=dist/$name.zip" | Out-File -Append $env:GITHUB_ENV
-          "ARTIFACT_NAME=$name.zip" | Out-File -Append $env:GITHUB_ENV
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cuetie-windows
-          path: ${{ env.ARTIFACT }}
-          if-no-files-found: error
-
   linux:
     name: Build Linux
     runs-on: ubuntu-22.04
@@ -204,16 +68,10 @@ jobs:
 
   release:
     name: Publish Release
-    needs: [windows, linux]
+    needs: [linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: cuetie-windows
-          path: dist
-
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:

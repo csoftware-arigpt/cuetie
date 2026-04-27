@@ -18,18 +18,6 @@ def _follow_system_theme():
 
 
 def _detect_dark_mode() -> bool:
-    import os
-    if os.name == "nt":
-        try:
-            import winreg
-            with winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
-            ) as key:
-                value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-                return value == 0
-        except Exception:
-            return False
     try:
         import subprocess
         result = subprocess.run(

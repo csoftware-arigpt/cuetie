@@ -1,11 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for CUEtie (GTK3 + PyGObject).
+"""PyInstaller spec for CUEtie (GTK3 + PyGObject) — Linux only.
 
 Build:
     pyinstaller packaging/cuetie.spec --noconfirm
 
-Bundles binaries placed under packaging/_ffmpeg/ before invocation
-(ffmpeg, ffprobe, plus .exe variants on Windows).
+Bundles ffmpeg/ffprobe placed under packaging/_ffmpeg/ before invocation.
 """
 from __future__ import annotations
 import os

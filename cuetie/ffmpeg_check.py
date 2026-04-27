@@ -14,12 +14,6 @@ class FFmpegInfo:
     codecs: set[str]
 
 
-def _no_window_kwargs() -> dict:
-    if os.name == "nt":
-        return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
-    return {}
-
-
 def _candidate_dirs() -> list[str]:
     dirs: list[str] = []
     meipass = getattr(sys, "_MEIPASS", None)
@@ -37,9 +31,8 @@ def _candidate_dirs() -> list[str]:
 
 def ffmpeg_path() -> str:
     """Return path to bundled ffmpeg if present, else PATH lookup, else ''."""
-    name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
     for d in _candidate_dirs():
-        candidate = os.path.join(d, name)
+        candidate = os.path.join(d, "ffmpeg")
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK | os.R_OK):
             return candidate
     return shutil.which("ffmpeg") or ""
@@ -54,7 +47,6 @@ def check_ffmpeg() -> FFmpegInfo:
         r = subprocess.run(
             [path, "-version"],
             capture_output=True, text=True, timeout=5,
-            **_no_window_kwargs(),
         )
         version_line = r.stdout.splitlines()[0] if r.stdout else ""
         version = version_line.replace("ffmpeg version ", "").split(" ")[0]
@@ -70,7 +62,6 @@ def _probe_codecs(path: str) -> set[str]:
         r = subprocess.run(
             [path, "-encoders"],
             capture_output=True, text=True, timeout=5,
-            **_no_window_kwargs(),
         )
         found: set[str] = set()
         for line in r.stdout.splitlines():
