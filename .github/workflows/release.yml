@@ -62,29 +62,75 @@ jobs:
 
       - name: Stage GTK runtime
         run: |
+          set -e
           DEST=dist/cuetie
           UCRT=/ucrt64
-          for dll in \
-            libgtk-3-0 libgdk-3-0 libgobject-2.0-0 libglib-2.0-0 \
-            libgio-2.0-0 libgmodule-2.0-0 libpango-1.0-0 libpangocairo-1.0-0 \
-            libpangoft2-1.0-0 libpangowin32-1.0-0 libcairo-2 libcairo-gobject-2 \
-            libgdk_pixbuf-2.0-0 libatk-1.0-0 libepoxy-0 \
-            libfribidi-0 libharfbuzz-0 libfontconfig-1 libfreetype-6 \
-            libpixman-1-0 libpng16-16 libffi-8 libintl-8 libiconv-2 \
-            zlib1 libwinpthread-1 libgcc_s_seh-1 libstdc++-6 \
-            libbz2-1 liblzma-5 libxml2-2 libgraphite2 libthai-0 libdatrie-1; do
-            f="$UCRT/bin/$dll.dll"
-            [ -f "$f" ] && cp "$f" "$DEST/" || true
+          PKGS=(
+            mingw-w64-ucrt-x86_64-gtk3
+            mingw-w64-ucrt-x86_64-glib2
+            mingw-w64-ucrt-x86_64-gdk-pixbuf2
+            mingw-w64-ucrt-x86_64-cairo
+            mingw-w64-ucrt-x86_64-pango
+            mingw-w64-ucrt-x86_64-atk
+            mingw-w64-ucrt-x86_64-gobject-introspection-runtime
+            mingw-w64-ucrt-x86_64-libepoxy
+            mingw-w64-ucrt-x86_64-harfbuzz
+            mingw-w64-ucrt-x86_64-fribidi
+            mingw-w64-ucrt-x86_64-fontconfig
+            mingw-w64-ucrt-x86_64-freetype
+            mingw-w64-ucrt-x86_64-graphite2
+            mingw-w64-ucrt-x86_64-libffi
+            mingw-w64-ucrt-x86_64-gettext-runtime
+            mingw-w64-ucrt-x86_64-zlib
+            mingw-w64-ucrt-x86_64-libpng
+            mingw-w64-ucrt-x86_64-libjpeg-turbo
+            mingw-w64-ucrt-x86_64-libtiff
+            mingw-w64-ucrt-x86_64-pixman
+            mingw-w64-ucrt-x86_64-libxml2
+            mingw-w64-ucrt-x86_64-libthai
+            mingw-w64-ucrt-x86_64-libdatrie
+            mingw-w64-ucrt-x86_64-bzip2
+            mingw-w64-ucrt-x86_64-xz
+            mingw-w64-ucrt-x86_64-brotli
+            mingw-w64-ucrt-x86_64-libiconv
+            mingw-w64-ucrt-x86_64-zstd
+            mingw-w64-ucrt-x86_64-shared-mime-info
+            mingw-w64-ucrt-x86_64-adwaita-icon-theme
+            mingw-w64-ucrt-x86_64-hicolor-icon-theme
+            mingw-w64-ucrt-x86_64-python-gobject
+            mingw-w64-ucrt-x86_64-python-cairo
+          )
+          for pkg in "${PKGS[@]}"; do
+            pacman -Ql "$pkg" 2>/dev/null | awk '{$1=""; sub(/^ /,""); print}' | \
+            while IFS= read -r path; do
+              [ -z "$path" ] && continue
+              [ -f "$path" ] || continue
+              case "$path" in
+                "$UCRT/bin/"*.dll|"$UCRT/bin/"*.exe)
+                  cp -u "$path" "$DEST/" ;;
+                "$UCRT/lib/girepository-1.0/"*|\
+                "$UCRT/lib/gdk-pixbuf-2.0/"*|\
+                "$UCRT/share/glib-2.0/schemas/"*|\
+                "$UCRT/share/icons/Adwaita/"*|\
+                "$UCRT/share/icons/hicolor/"*|\
+                "$UCRT/share/themes/"*|\
+                "$UCRT/share/mime/"*|\
+                "$UCRT/share/fontconfig/"*|\
+                "$UCRT/etc/fonts/"*|\
+                "$UCRT/etc/gtk-3.0/"*)
+                  rel="${path#$UCRT/}"
+                  target="$DEST/$rel"
+                  mkdir -p "$(dirname "$target")"
+                  cp -u "$path" "$target" ;;
+              esac
+            done
           done
-          mkdir -p "$DEST/share/glib-2.0/schemas"
-          cp -r $UCRT/share/glib-2.0/schemas/* "$DEST/share/glib-2.0/schemas/" || true
-          mkdir -p "$DEST/lib/gdk-pixbuf-2.0"
-          cp -r $UCRT/lib/gdk-pixbuf-2.0/* "$DEST/lib/gdk-pixbuf-2.0/" || true
-          mkdir -p "$DEST/lib/girepository-1.0"
-          cp -r $UCRT/lib/girepository-1.0/* "$DEST/lib/girepository-1.0/" || true
-          mkdir -p "$DEST/share/icons"
-          cp -r $UCRT/share/icons/Adwaita "$DEST/share/icons/" || true
-          cp -r $UCRT/share/icons/hicolor "$DEST/share/icons/" || true
+          if command -v glib-compile-schemas >/dev/null 2>&1; then
+            glib-compile-schemas "$DEST/share/glib-2.0/schemas" || true
+          fi
+          cp -u "$UCRT/bin/gdk-pixbuf-query-loaders.exe" "$DEST/" || true
+          rm -f "$DEST/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          echo "DLL count: $(ls "$DEST"/*.dll 2>/dev/null | wc -l)"
 
       - name: Package zip
         shell: pwsh
