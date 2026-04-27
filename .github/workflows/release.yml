@@ -33,7 +33,6 @@ jobs:
             mingw-w64-ucrt-x86_64-python-pip
             mingw-w64-ucrt-x86_64-python-gobject
             mingw-w64-ucrt-x86_64-python-cairo
-            mingw-w64-ucrt-x86_64-python-pyinstaller
             mingw-w64-ucrt-x86_64-python-mutagen
             mingw-w64-ucrt-x86_64-python-charset-normalizer
             mingw-w64-ucrt-x86_64-gtk3
@@ -42,6 +41,11 @@ jobs:
             mingw-w64-ucrt-x86_64-gettext
             unzip
             curl
+
+      - name: Install PyInstaller
+        run: |
+          python -m pip install --break-system-packages --upgrade pip
+          python -m pip install --break-system-packages pyinstaller
 
       - name: Fetch ffmpeg
         run: |
