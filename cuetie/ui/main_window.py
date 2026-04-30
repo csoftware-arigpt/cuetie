@@ -113,12 +113,6 @@ class MainWindow(Gtk.ApplicationWindow):
         self._main_paned = main_paned
         GLib.idle_add(self._set_sidebar_position)
 
-        bottom = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        bottom.pack_start(self._make_output_panel(), False, False, 0)
-        bottom.pack_start(Gtk.Separator(), False, False, 0)
-        bottom.pack_start(self._make_progress_panel(), False, False, 0)
-        bottom.pack_start(Gtk.Separator(), False, False, 0)
-
         log_scroll = Gtk.ScrolledWindow()
         log_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         log_scroll.set_min_content_height(80)
@@ -129,18 +123,26 @@ class MainWindow(Gtk.ApplicationWindow):
                           monospace=True)
         self._log_view = tv
         log_scroll.add(tv)
-        bottom.pack_start(log_scroll, True, True, 0)
 
         vpaned = Gtk.VPaned()
         vpaned.pack1(main_paned, resize=True, shrink=True)
-        vpaned.pack2(bottom, resize=True, shrink=True)
+        vpaned.pack2(log_scroll, resize=True, shrink=True)
         self._vpaned = vpaned
         GLib.idle_add(self._set_vpaned_position)
         root.pack_start(vpaned, True, True, 0)
 
         root.pack_start(Gtk.Separator(), False, False, 0)
+        root.pack_start(self._make_output_panel(), False, False, 0)
+        root.pack_start(Gtk.Separator(), False, False, 0)
+        root.pack_start(self._make_progress_panel(), False, False, 0)
+
+        self._workers_separator = Gtk.Separator()
+        root.pack_start(self._workers_separator, False, False, 0)
         self._workers_panel = WorkersPanel(on_kill_one=self._on_kill_one)
         root.pack_start(self._workers_panel, False, False, 0)
+        for w in (self._workers_separator, self._workers_panel):
+            w.set_no_show_all(True)
+            w.hide()
 
         root.pack_start(Gtk.Separator(), False, False, 0)
         status_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
@@ -727,6 +729,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self._progress.set_text("0%")
         self._log_buf.set_text("")
         self._workers_panel.clear()
+        self._workers_separator.show()
+        self._workers_panel.show()
         self._append_log(
             f"Starting: {len(jobs)} cue · {total_tracks} tracks · workers={workers}"
         )
@@ -787,6 +791,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self._progress.set_text("Done" if success else "Stopped")
         self._status_label.set_text(msg)
         self._workers_panel.clear()
+        self._workers_panel.hide()
+        self._workers_separator.hide()
         self._append_log(f"=== {msg} ===")
         return False
 
