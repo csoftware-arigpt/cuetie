@@ -8,6 +8,7 @@ pkgs.mkShell {
     python313Packages.pygobject3
     python313Packages.mutagen
     python313Packages.charset-normalizer
+    python313Packages.pillow
     gtk3
     glib
     gsettings-desktop-schemas

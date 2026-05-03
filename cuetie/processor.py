@@ -5,7 +5,7 @@ import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 from .cue_parser import AlbumInfo, TrackInfo, FileEntry
 from .ffmpeg_check import ffmpeg_path
@@ -365,6 +365,53 @@ def _format_filename(
         return f"{track.number:02d}"
 
 
+# Ogg page max ~65025 bytes. Picture block + base64 (4/3) + headers means
+# raw image must stay under ~48KB to fit in a single Ogg comment packet.
+_OGG_PICTURE_MAX_RAW = 48 * 1024
+# FLAC METADATA_BLOCK length field is 24-bit; mutagen raises
+# "block is too long to write" at 2**24 - 1. Leave headroom for Picture
+# header (~30 B) plus mutagen's repacking, target 10 MB.
+_FLAC_PICTURE_MAX_RAW = 10 * 1024 * 1024
+
+
+def _fit_picture(
+    img_data: bytes, mime: str, max_raw: int,
+    log: Callable[[str], None],
+) -> Optional[Tuple[bytes, str]]:
+    if len(img_data) <= max_raw:
+        return img_data, mime
+    try:
+        from PIL import Image
+        import io
+    except ImportError:
+        log(f"Cover too large ({len(img_data)} B > {max_raw} B); install Pillow to auto-resize")
+        return None
+    try:
+        im = Image.open(io.BytesIO(img_data))
+        if im.mode not in ("RGB", "L"):
+            im = im.convert("RGB")
+        size = list(im.size)
+        if max_raw <= 64 * 1024:
+            steps = [(800, 85), (600, 80), (500, 75), (400, 70), (300, 65)]
+        else:
+            steps = [(2000, 90), (1600, 88), (1400, 85), (1200, 82), (1000, 80), (800, 75)]
+        data = b""
+        for max_dim, quality in steps:
+            scale = min(1.0, max_dim / max(size))
+            new_size = (max(1, int(size[0] * scale)), max(1, int(size[1] * scale)))
+            resized = im.resize(new_size, Image.LANCZOS) if scale < 1.0 else im
+            buf = io.BytesIO()
+            resized.save(buf, format="JPEG", quality=quality, optimize=True)
+            data = buf.getvalue()
+            if len(data) <= max_raw:
+                return data, "image/jpeg"
+        log(f"Cover still too large after recompress ({len(data)} B); skipped")
+        return None
+    except Exception as e:
+        log(f"Cover recompress failed: {e}")
+        return None
+
+
 def _embed_cover(
     audio_path: str, cover_path: str, fmt: str,
     log: Callable[[str], None],
@@ -379,6 +426,10 @@ def _embed_cover(
 
         if fmt == "flac":
             from mutagen.flac import FLAC, Picture
+            fitted = _fit_picture(img_data, mime, _FLAC_PICTURE_MAX_RAW, log)
+            if fitted is None:
+                return
+            img_data, mime = fitted
             audio = FLAC(audio_path)
             pic = Picture()
             pic.type, pic.mime, pic.data = 3, mime, img_data
@@ -401,6 +452,10 @@ def _embed_cover(
             from mutagen.flac import Picture
             from mutagen.oggvorbis import OggVorbis
             from mutagen.oggopus import OggOpus
+            fitted = _fit_picture(img_data, mime, _OGG_PICTURE_MAX_RAW, log)
+            if fitted is None:
+                return
+            img_data, mime = fitted
             pic = Picture()
             pic.data, pic.type, pic.mime = img_data, 3, mime
             pic.width = pic.height = pic.depth = pic.colors = 0
